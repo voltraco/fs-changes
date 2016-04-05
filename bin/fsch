@@ -1,0 +1,49 @@
+#!/usr/bin/env node
+'use strict'
+
+const path = require('path')
+const fsch = require('../index')
+
+let args = process.argv.slice(2)
+let dir = args[0]
+
+if (!dir) {
+  console.log(
+`
+  Usage:
+    fsch <path/to/directory> <regex> [cache.json]
+`)
+  process.exit(1)
+}
+
+dir = path.resolve(dir)
+
+let quoted = /"(.*)"/.exec(args[1])
+
+if (quoted) {
+  args[1] = quoted[1]
+}
+
+const pattern = new RegExp(args[1])
+
+let write = function(o) {
+  let data = JSON.stringify(o)
+  process.stdout.write(data + '\n')
+}
+
+const cache = path.join(process.cwd(), '/.fschanges.json')
+
+const opts = {
+  pattern: pattern,
+  dir: dir,
+  cacheFilename: path.resolve(args[2] || cache)
+}
+
+fsch(opts, (err, events) => {
+  if (err) return console.error(err)
+
+  events.on('added', p => write({ path: p, type: 'added' }))
+  events.on('modified', p => write({ path: p, type: 'modified' }))
+  events.on('removed', p => write({ path: p, type: 'removed' }))
+})
+

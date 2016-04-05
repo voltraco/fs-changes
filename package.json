@@ -1,0 +1,31 @@
+{
+  "name": "fs-changes",
+  "version": "1.1.2",
+  "description": "recursively watch the file system and emit changes as new-line-delimited-json",
+  "main": "index.js",
+  "bin": "./bin/fsch",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "mkdirp": "^0.5.1",
+    "rimraf": "^2.5.2",
+    "split2": "^2.0.1",
+    "tape": "^4.5.1",
+    "through2": "^2.0.1"
+  },
+  "scripts": {
+    "test": "node test/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/voltraco/fs-changes.git"
+  },
+  "author": "hij1nx",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/voltraco/fs-changes/issues"
+  },
+  "homepage": "https://github.com/voltraco/fs-changes#readme"
+}
