@@ -8,7 +8,7 @@ Emits events for changes made since the process was last run.
 Used as a user command.
 
 ```bash
-fsch <path/to/directory> <regex-pattern> [cache.json]
+fsch <path/to/watch> <regex-pattern> [path/to/cache]
 ```
 
 ### fsch(3)
@@ -19,8 +19,8 @@ const f = require('fsch')
 
 const opts = {
   pattern: /\.txt$/,
-  dir: dir,
-  cacheFilename: __dirname
+  dir: './files',
+  cache: __dirname + '/.cache'
 }
 
 f(opts, events => { // returns `events` after doing initial diff
