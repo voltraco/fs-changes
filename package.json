@@ -1,13 +1,15 @@
 {
   "name": "fs-changes",
-  "version": "1.1.2",
+  "version": "2.0.0",
   "description": "recursively watch the file system and emit changes as new-line-delimited-json",
   "main": "index.js",
   "bin": "./bin/fsch",
   "directories": {
     "test": "test"
   },
-  "dependencies": {},
+  "dependencies": {
+    "level": "^1.4.0"
+  },
   "devDependencies": {
     "mkdirp": "^0.5.1",
     "rimraf": "^2.5.2",

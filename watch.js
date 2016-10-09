@@ -3,26 +3,30 @@ const fs = require('fs')
 const path = require('path')
 const events = require('events')
 
-module.exports = function Watch(opts) {
-
+module.exports = function Watch (opts) {
   opts = opts || {}
   const pattern = opts.pattern
 
-  let dirs = [opts.dir]
-  let e = new events.EventEmitter
+  let dirs = {
+    [opts.dir]: null
+  }
+
+  let e = new events.EventEmitter()
 
   const cb = p => {
-    fs.lstat(p, (err, stat) => {
+    fs.stat(p, (err, stat) => {
       if (err) { // must have been deleted
-        const isDir = dirs.indexOf(p) > -1
+        const isDir = !!dirs[p]
         if (isDir || pattern.test(p)) {
           e.emit('_removed', p, isDir)
+          dirs[p] && dirs[p].close()
+          delete dirs[p]
         }
       } else {
         if (stat.isDirectory()) {
-          dirs.push(p)
+          if (dirs[p]) return
           e.emit('_modified', p, true)
-          fs.watch(p, (_, file) => {
+          dirs[p] = fs.watch(p, (_, file) => {
             cb(path.join(p, file))
           })
         } else if (pattern.test(p)) {
@@ -32,38 +36,39 @@ module.exports = function Watch(opts) {
     })
   }
 
-  const readDirs = (p, store) => {
+  const readDirs = p => {
     const files = fs.readdirSync(p)
     const fileslen = files.length
 
     for (var i = 0; i < fileslen; i++) {
       const d = path.join(p, files[i])
-      const stats = fs.lstatSync(d)
+      const stats = fs.statSync(d)
 
       if (stats.isDirectory()) {
-        readDirs(d, store)
-        dirs.push(d)
+        readDirs(d)
+        dirs[d] = null
       }
     }
   }
 
-  const watch = dirs => {
-    let dirslen = dirs.length
-    for (let i = 0; i < dirslen; i++) (loc => {
-      fs.watch(loc, (_, file) => {
+  const watch = () => {
+    Object.keys(dirs).map(loc => {
+      if (dirs[loc]) return
+
+      dirs[loc] = fs.watch(loc, (_, file) => {
         cb(path.join(loc, file))
       })
-    })(dirs[i])
+    })
   }
 
-  readDirs(opts.dir, dirs)
-  watch(dirs)
+  readDirs(opts.dir)
+  watch()
 
   e.addDir = p => {
-    let _dirs = []
-    readDirs(p, _dirs)
-    watch(_dirs)
-    dirs = dirs.concat(_dirs)
+    if (dirs[p]) return
+
+    readDirs(p)
+    watch()
   }
 
   return e

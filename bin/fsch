@@ -31,17 +31,18 @@ let write = function(o) {
   process.stdout.write(data + '\n')
 }
 
-const cache = path.join(process.cwd(), '/.fschanges.json')
+const cache = path.join(process.cwd(), '.cache')
 
 const opts = {
   pattern: pattern,
   dir: dir,
-  cacheFilename: path.resolve(args[2] || cache)
+  cache: path.resolve(args[2] || cache)
 }
 
 fsch(opts, (err, events) => {
   if (err) return console.error(err)
 
+  events.on('ready', p => write({ path: opts.dir, type: 'ready' }))
   events.on('added', p => write({ path: p, type: 'added' }))
   events.on('modified', p => write({ path: p, type: 'modified' }))
   events.on('removed', p => write({ path: p, type: 'removed' }))

@@ -1,118 +1,130 @@
 'use strict'
 const fs = require('fs')
 const path = require('path')
-const diff = require('./diff')
+const level = require('level')
 const Watch = require('./watch')
 
-const concat = [].concat
+const defaultPath = path.join(__dirname, '.cache')
 
-module.exports = function(opts, cb) {
+module.exports = function (opts, cb) {
+  const cache = level(opts.cache || defaultPath)
 
-  if (path.extname(opts.cacheFilename) !== '.json') {
-    return cb(new Error('Cache must be a .json file'))
+  let watch = Watch(opts)
+
+  const readFiles = (p, cb) => {
+    fs.readdir(p, (err, files) => {
+      if (err) return cb(err)
+
+      const next = file => {
+        if (!file) {
+          return cb(null)
+        }
+
+        const f = path.join(p, file)
+        const stats = fs.lstatSync(f)
+
+        if (stats.isDirectory()) {
+          readFiles(f, cb)
+        } else if (opts.pattern.test(f)) {
+          cache.get(f, (err, value) => {
+            if (!err) {
+              return next(files.pop())
+            }
+
+            cache.put(f, null, (err) => {
+              if (err) return cb(err)
+
+              watch.emit('added', f)
+
+              next(files.pop())
+            })
+          })
+        }
+      }
+
+      next(files.pop())
+    })
   }
 
-  let previous = []
-  let current = []
-
-  const readFiles = (p, store) => {
-    const files = fs.readdirSync(p)
-    const fileslen = files.length;
-
-    for (var i = 0; i < fileslen; i++) {
-      const f = path.join(p, files[i])
-      const stats = fs.lstatSync(f)
-
-      if (stats.isDirectory())
-        readFiles(f, store)
-      else if (opts.pattern.test(files[i]))
-        store.push(f)
-    }
-  }
-
-  let debounce
-  const updateCache = () => {
-    clearTimeout(debounce)
-    debounce = setTimeout(() => {
-      fs.writeFileSync(
-        opts.cacheFilename,
-        JSON.stringify(current))
-    }, 1)
-  }
-
-  const ready = delta => {
-    updateCache()
-
-    let watch = Watch(opts)
-
+  const ready = () => {
     const removed = (p, isDirectory) => {
       if (isDirectory) {
-        let len = current.length
-        let i = len
-        while (--i) {
-          if (current[i].indexOf(p) > -1) {
-            let r = current.splice(i, 1)
-            watch.emit('removed', r[0])
-          }
-        }
-        updateCache()
-        return
-      }
+        const rs = cache
+          .createReadStream({
+            gte: p,
+            lte: p + '~',
+            values: false
+          })
 
-      const index = current.indexOf(p)
-      if (index > -1) {
-        current.splice(index, 1)
+        rs.on('data', key => {
+          cache.get(key, (err) => {
+            if (err) return
+            cache.del(key, (err) => {
+              if (err) return watch.emit('error', err)
+
+              watch.emit('removed', key)
+            })
+          })
+        })
+      } else {
+        cache.del(p, (err) => {
+          if (err) return watch.emit('error', err)
+          watch.emit('removed', p)
+        })
       }
-      watch.emit('removed', p)
-      updateCache()
     }
 
     const modified = (p, isDirectory) => {
       if (isDirectory) {
         watch.addDir(p)
-        let _current = []
-        readFiles(p, _current)
-        _current.forEach(f => watch.emit('added', f))
-        current = current.concat(_current)
-      } else if (current.indexOf(p) === -1) {
-        current.push(p)
-        watch.emit('added', p)
-      } else {
-        watch.emit('modified', p)
+        return readFiles(p, (err) => {
+          if (err) watch.emit('error', err)
+        })
       }
-      updateCache()
+
+      cache.get(p, err => {
+        if (!err) return watch.emit('modified', p)
+
+        cache.put(p, null, err => {
+          if (err) return watch.emit('error', err)
+          watch.emit('added', p)
+        })
+      })
     }
 
     watch.on('_removed', removed)
     watch.on('_modified', modified)
+  }
 
-    cb(null, watch)
+  let waiting = 0
 
-    if (delta && delta.added.length) {
-      delta.added.forEach(p => {
-        watch.emit('added', p)
+  cache
+    .createReadStream({ values: false })
+    .on('data', key => {
+      ++waiting
+      fs.stat(key, (err, _) => {
+        if (!err) {
+          --waiting
+          return
+        }
+
+        cache.del(key, (err) => {
+          --waiting
+          if (err) return watch.emit('error', err)
+          watch.emit('removed', key)
+        })
       })
-      updateCache()
-    }
+    })
+    .on('end', () => {
+      let wait = setInterval(() => {
+        if (!waiting) {
+          clearInterval(wait)
+          watch.emit('ready')
+          readFiles(opts.dir, ready)
+        }
+      }, 100)
+    })
 
-    if (delta && delta.removed.length) {
-      delta.removed.map(removed)
-    }
-  }
-
-  try {
-    previous = require(opts.cacheFilename)
-  } catch(err) {
-    fs.writeFileSync(opts.cacheFilename, '', 'utf8')
-  }
-
-  readFiles(opts.dir, current)
-
-  if (JSON.stringify(previous) === 
-      JSON.stringify(current)) {
-    return ready()
-  }
-
-  diff(previous, current, ready)
+  cb(null, watch)
 }
 
