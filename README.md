@@ -19,7 +19,7 @@ fsch <path/to/watch> <regex-pattern> [path/to/cache]
 Used as a library.
 
 ```js
-const f = require('fsch')
+const changes = require('fs-changes')
 
 const opts = {
   pattern: /\.txt$/,
@@ -27,11 +27,11 @@ const opts = {
   cache: '.cache'
 }
 
-f(opts, events => { // returns `events` after doing initial diff
+changes(opts, events => { // returns `events` after doing initial diff
 
   events.on('added', path => console.log({ path, type: 'added' }))
   events.on('modified', path => console.log({ path, type: 'modified' }))
   events.on('removed', path => console.log({ path, type: 'removed' }))
-})
+}) // returns an instance of levelup
 ```
 
