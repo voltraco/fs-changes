@@ -11,38 +11,40 @@ module.exports = function (opts, cb) {
 
   let watch = Watch(opts)
 
-  const readFiles = (p, cb) => {
-    fs.readdir(p, (err, files) => {
-      if (err) return cb(err)
+  const readFiles = (dir, done) => {
+    fs.readdir(dir, (err, list) => {
+      if (err) return done(err)
+      let i = 0
 
-      const next = file => {
-        if (!file) {
-          return cb(null)
-        }
+      ;(function next () {
+        let file = list[i++]
+        if (!file) return done(null)
+        let filepath = path.join(dir, file)
 
-        const f = path.join(p, file)
-        const stats = fs.lstatSync(f)
+        fs.stat(filepath, (err, stat) => {
+          if (err) return done(err)
 
-        if (stats.isDirectory()) {
-          readFiles(f, cb)
-        } else if (opts.pattern.test(f)) {
-          cache.get(f, (err, value) => {
-            if (!err) {
-              return next(files.pop())
-            }
+          if (stat && stat.isDirectory()) {
+            return readFiles(filepath, next)
+          } else if (!opts.pattern.test(file)) {
+            return next()
+          }
 
-            cache.put(f, null, (err) => {
-              if (err) return cb(err)
+          cache.get(filepath, (err, value) => {
+            if (!err) return next()
 
-              watch.emit('added', f)
+            cache.put(filepath, '', (err) => {
+              if (err) {
+                return cb(err)
+              }
 
-              next(files.pop())
+              watch.emit('added', filepath)
+
+              next()
             })
           })
-        }
-      }
-
-      next(files.pop())
+        })
+      })()
     })
   }
 
@@ -50,11 +52,11 @@ module.exports = function (opts, cb) {
     const removed = (p, isDirectory) => {
       if (isDirectory) {
         const rs = cache
-          .createReadStream({
-            gte: p,
-            lte: p + '~',
-            values: false
-          })
+            .createReadStream({
+              gte: p,
+              lte: p + '~',
+              values: false
+            })
 
         rs.on('data', key => {
           cache.get(key, (err) => {
@@ -126,5 +128,6 @@ module.exports = function (opts, cb) {
     })
 
   cb(null, watch)
+  return cache
 }
 

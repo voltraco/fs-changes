@@ -7,6 +7,10 @@ module.exports = function Watch (opts) {
   opts = opts || {}
   const pattern = opts.pattern
 
+  if (typeof opts.dir === 'undefined') {
+    throw new Error('dir parameter required')
+  }
+
   let dirs = {
     [opts.dir]: null
   }
@@ -36,40 +40,44 @@ module.exports = function Watch (opts) {
     })
   }
 
-  const readDirs = p => {
-    const files = fs.readdirSync(p)
-    const fileslen = files.length
+  const readDirs = (dir, done) => {
+    if (!dir) return
+    fs.readdir(dir, (err, files) => {
+      if (err) return done(err)
 
-    for (var i = 0; i < fileslen; i++) {
-      const d = path.join(p, files[i])
-      const stats = fs.statSync(d)
+      let i = 0
 
-      if (stats.isDirectory()) {
-        readDirs(d)
-        dirs[d] = null
-      }
-    }
+      ;(function next () {
+        let file = files[i++]
+        if (!file) return done(null)
+
+        const filepath = path.join(dir, file)
+        fs.stat(filepath, (err, stat) => {
+          if (err) return done(err)
+
+          if (stat && stat.isDirectory()) {
+            dirs[filepath] = null
+            return readDirs(filepath, next)
+          }
+          next()
+        })
+      }())
+    })
   }
 
-  const watch = () => {
+  const watch = err => {
+    if (err) return e.emit('error', err)
     Object.keys(dirs).map(loc => {
       if (dirs[loc]) return
-
       dirs[loc] = fs.watch(loc, (_, file) => {
         cb(path.join(loc, file))
       })
     })
   }
 
-  readDirs(opts.dir)
-  watch()
+  readDirs(opts.dir, watch)
 
-  e.addDir = p => {
-    if (dirs[p]) return
-
-    readDirs(p)
-    watch()
-  }
+  e.addDir = p => readDirs(p, watch)
 
   return e
 }

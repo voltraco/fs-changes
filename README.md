@@ -1,6 +1,10 @@
 # SYNOPSIS
-Watch the file system recursively and emit changes as new-line-delimited json.
-Emits events for changes made since the process was last run.
+A simple cross platform leveldb backed file system watcher.
+
+# DESCRIPTION
+Watches the file system recursively, stores a snapshot in leveldb, compares
+and emits changes in the form of new-line-delimited json. Also emits events
+for changes made since the process was last run.
 
 # USAGE
 
@@ -20,14 +24,14 @@ const f = require('fsch')
 const opts = {
   pattern: /\.txt$/,
   dir: './files',
-  cache: __dirname + '/.cache'
+  cache: '.cache'
 }
 
 f(opts, events => { // returns `events` after doing initial diff
 
-  events.on('added', p => console.log({ path: p, type: 'added' }))
-  events.on('modified', p => console.log({ path: p, type: 'modified' }))
-  events.on('removed', p => console.log({ path: p, type: 'removed' }))
+  events.on('added', path => console.log({ path, type: 'added' }))
+  events.on('modified', path => console.log({ path, type: 'modified' }))
+  events.on('removed', path => console.log({ path, type: 'removed' }))
 })
 ```
 
