@@ -15,7 +15,7 @@ Used as a user command.
 fsch <path/to/watch> <regex-pattern> [path/to/cache]
 ```
 
-### fsch(3)
+### fs-changes(3)
 Used as a library.
 
 ```js
