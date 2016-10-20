@@ -1,7 +1,7 @@
 'use strict'
 const fs = require('fs')
 const path = require('path')
-const level = require('level')
+const level = require('levelup')
 const Watch = require('./watch')
 
 const defaultPath = path.join(__dirname, '.cache')
