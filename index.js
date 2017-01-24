@@ -127,7 +127,7 @@ module.exports = function (opts, cb) {
       }, 100)
     })
 
-  cb(null, watch)
+  process.nextTick(() => cb(null, watch))
   return cache
 }
 
