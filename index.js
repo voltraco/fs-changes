@@ -7,7 +7,7 @@ const Watch = require('./watch')
 const defaultPath = path.join(__dirname, '.cache')
 
 module.exports = function (opts, cb) {
-  const cache = level(opts.cache || defaultPath)
+  const cache = level(opts.cache || defaultPath, opts)
 
   let watch = Watch(opts)
 
@@ -130,4 +130,3 @@ module.exports = function (opts, cb) {
   process.nextTick(() => cb(null, watch))
   return cache
 }
-
