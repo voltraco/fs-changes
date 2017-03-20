@@ -9,7 +9,51 @@ const defaultPath = path.join(__dirname, '.cache')
 module.exports = function (opts, cb) {
   const cache = level(opts.cache || defaultPath, opts)
 
+  let paused = !!opts.paused
   let watch = Watch(opts)
+
+  cache.on('pause', () => {
+    paused = true
+  })
+
+  cache.on('resume', () => {
+    paused = false
+    cache.emit('resumed')
+  })
+
+  cache.on('remove', filepaths => {
+    paused = true
+
+    if (!filepaths.length) {
+      return cache.emit('remove', [])
+    }
+
+    filepaths = filepaths.map(p => {
+      return { type: 'del', key: p }
+    })
+
+    cache.batch(filepaths, err => {
+      if (err) return cache.emit('error', err)
+      cache.emit('removed')
+    })
+  })
+
+  cache.on('add', filepaths => {
+    paused = true
+
+    if (!filepaths.length) {
+      return cache.emit('added', [])
+    }
+
+    filepaths = filepaths.map(p => {
+      return { type: 'put', key: p, value: '' }
+    })
+
+    cache.batch(filepaths, err => {
+      if (err) return cache.emit('error', err)
+      cache.emit('added')
+    })
+  })
 
   const readFiles = (dir, done) => {
     fs.readdir(dir, (err, list) => {
@@ -34,12 +78,11 @@ module.exports = function (opts, cb) {
             if (!err) return next()
 
             cache.put(filepath, '', (err) => {
-              if (err) {
-                return cb(err)
-              }
+              if (err) return cb(err)
+
+              if (paused) return next()
 
               watch.emit('added', filepath)
-
               next()
             })
           })
@@ -50,6 +93,8 @@ module.exports = function (opts, cb) {
 
   const ready = () => {
     const removed = (p, isDirectory) => {
+      if (paused) return
+
       if (isDirectory) {
         const rs = cache
             .createReadStream({
@@ -62,21 +107,22 @@ module.exports = function (opts, cb) {
           cache.get(key, (err) => {
             if (err) return
             cache.del(key, (err) => {
-              if (err) return watch.emit('error', err)
-
+              if (err) return
               watch.emit('removed', key)
             })
           })
         })
       } else {
         cache.del(p, (err) => {
-          if (err) return watch.emit('error', err)
+          if (err) return
           watch.emit('removed', p)
         })
       }
     }
 
     const modified = (p, isDirectory) => {
+      if (paused) return
+
       if (isDirectory) {
         watch.addDir(p)
         return readFiles(p, (err) => {
@@ -87,8 +133,9 @@ module.exports = function (opts, cb) {
       cache.get(p, err => {
         if (!err) return watch.emit('modified', p)
 
-        cache.put(p, null, err => {
+        cache.put(p, '', err => {
           if (err) return watch.emit('error', err)
+
           watch.emit('added', p)
         })
       })
@@ -104,6 +151,12 @@ module.exports = function (opts, cb) {
     .createReadStream({ values: false })
     .on('data', key => {
       ++waiting
+
+      // check to see if the file that we know about exists,
+      // if not, complain that it has been deleted from the
+      // watched directory. Unless the watcher starts in the
+      // "paused" state.
+
       fs.stat(key, (err, _) => {
         if (!err) {
           --waiting
@@ -113,7 +166,7 @@ module.exports = function (opts, cb) {
         cache.del(key, (err) => {
           --waiting
           if (err) return watch.emit('error', err)
-          watch.emit('removed', key)
+          if (!paused) watch.emit('removed', key)
         })
       })
     })

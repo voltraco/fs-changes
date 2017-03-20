@@ -151,6 +151,7 @@ test('directories that are added are watched', assert => {
         rimraf(p, err => {
           assert.ok(!err)
           setTimeout(() => {
+            console.log(ops)
             assert.equal(adds, 2)
             assert.equal(removes, 2)
             assert.equal(ready, 1)
