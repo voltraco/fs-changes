@@ -21,39 +21,29 @@ module.exports = function (opts, cb) {
     cache.emit('resumed')
   })
 
-  cache.on('remove', filepaths => {
+  cache.remove = (filepaths, cb) => {
     paused = true
 
-    if (!filepaths.length) {
-      return cache.emit('remove', [])
-    }
+    if (!filepaths.length) return
 
     filepaths = filepaths.map(p => {
       return { type: 'del', key: p }
     })
 
-    cache.batch(filepaths, err => {
-      if (err) return cache.emit('error', err)
-      cache.emit('removed')
-    })
-  })
+    cache.batch(filepaths, cb)
+  }
 
-  cache.on('add', filepaths => {
+  cache.add = (filepaths, cb) => {
     paused = true
 
-    if (!filepaths.length) {
-      return cache.emit('added', [])
-    }
+    if (!filepaths.length) return
 
     filepaths = filepaths.map(p => {
       return { type: 'put', key: p, value: '' }
     })
 
-    cache.batch(filepaths, err => {
-      if (err) return cache.emit('error', err)
-      cache.emit('added')
-    })
-  })
+    cache.batch(filepaths, cb)
+  }
 
   const readFiles = (dir, done) => {
     fs.readdir(dir, (err, list) => {
